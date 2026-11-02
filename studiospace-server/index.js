@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { MongoClient, ObjectId } from "mongodb";
+import { attachUser, requireAuth } from "./lib/auth.js";
 
 dotenv.config();
 
@@ -13,14 +14,19 @@ const PORT = process.env.PORT || 5000;
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:3000",
+    credentials: true,
   })
 );
 
 app.use(express.json());
 
+// Verifies the NextAuth session cookie on every request (attaches req.user).
+app.use(attachUser);
+
 const client = new MongoClient(process.env.MONGODB_URI);
 
 let studiosCollection;
+let bookingsCollection;
 
 async function connectDB() {
   try {
@@ -31,6 +37,7 @@ async function connectDB() {
     );
 
     studiosCollection = database.collection("studios");
+    bookingsCollection = database.collection("bookings");
 
     console.log("MongoDB Connected Successfully!");
 
@@ -95,6 +102,23 @@ app.get("/api/studios", async (req, res) => {
   }
 });
 
+// Get My Studios - Only the authenticated user's listings
+app.get("/api/studios/mine", requireAuth, async (req, res) => {
+  try {
+    const studios = await studiosCollection
+      .find({ ownerEmail: req.user.email })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.status(200).json(studios);
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch my studios",
+    });
+  }
+});
+
 // Get Single Studio
 app.get("/api/studios/:id", async (req, res) => {
   try {
@@ -125,8 +149,8 @@ app.get("/api/studios/:id", async (req, res) => {
   }
 });
 
-// Add New Studio
-app.post("/api/studios", async (req, res) => {
+// Add New Studio - Authenticated users only
+app.post("/api/studios", requireAuth, async (req, res) => {
   try {
     const studioData = req.body;
 
@@ -142,6 +166,7 @@ app.post("/api/studios", async (req, res) => {
 
     const newStudio = {
       ...studioData,
+      ownerEmail: req.user.email,
       hourlyRate: Number(studioData.hourlyRate),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -161,8 +186,8 @@ app.post("/api/studios", async (req, res) => {
   }
 });
 
-// Update Studio
-app.patch("/api/studios/:id", async (req, res) => {
+// Update Studio - Only the authenticated owner can update
+app.patch("/api/studios/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -181,7 +206,7 @@ app.patch("/api/studios/:id", async (req, res) => {
     updateData.updatedAt = new Date();
 
     const result = await studiosCollection.updateOne(
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(id), ownerEmail: req.user.email },
       { $set: updateData }
     );
 
@@ -202,8 +227,8 @@ app.patch("/api/studios/:id", async (req, res) => {
   }
 });
 
-// Delete Studio
-app.delete("/api/studios/:id", async (req, res) => {
+// Delete Studio - Only the authenticated owner can delete
+app.delete("/api/studios/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -215,6 +240,7 @@ app.delete("/api/studios/:id", async (req, res) => {
 
     const result = await studiosCollection.deleteOne({
       _id: new ObjectId(id),
+      ownerEmail: req.user.email,
     });
 
     if (!result.deletedCount) {
@@ -230,6 +256,94 @@ app.delete("/api/studios/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Failed to delete studio",
+    });
+  }
+});
+
+// Create Booking - Authenticated users only
+app.post("/api/bookings", requireAuth, async (req, res) => {
+  try {
+    const { studioId, date, message } = req.body;
+
+    if (!studioId || !date) {
+      return res.status(400).json({
+        message: "Studio ID and date are required",
+      });
+    }
+
+    if (!ObjectId.isValid(studioId)) {
+      return res.status(400).json({
+        message: "Invalid studio ID",
+      });
+    }
+
+    const studio = await studiosCollection.findOne({
+      _id: new ObjectId(studioId),
+    });
+
+    if (!studio) {
+      return res.status(404).json({
+        message: "Studio not found",
+      });
+    }
+
+    const newBooking = {
+      studioId: new ObjectId(studioId),
+      userEmail: req.user.email,
+      date,
+      message: message || "",
+      status: "pending",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await bookingsCollection.insertOne(newBooking);
+
+    res.status(201).json({
+      message: "Booking created successfully",
+      insertedId: result.insertedId,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to create booking",
+    });
+  }
+});
+
+// Get My Bookings - Only the authenticated user's bookings
+app.get("/api/bookings/my", requireAuth, async (req, res) => {
+  try {
+    const bookings = await bookingsCollection
+      .find({ userEmail: req.user.email })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Attach basic studio info so the "My Bookings" page can display it.
+    const studioIds = [
+      ...new Set(bookings.map((booking) => booking.studioId.toString())),
+    ].map((id) => new ObjectId(id));
+
+    const studios = await studiosCollection
+      .find({ _id: { $in: studioIds } })
+      .project({ title: 1 })
+      .toArray();
+
+    const studioById = new Map(
+      studios.map((studio) => [studio._id.toString(), studio])
+    );
+
+    const result = bookings.map(({ studioId, ...booking }) => ({
+      ...booking,
+      studio: studioById.get(studioId.toString()) || null,
+      studioId: studioId,
+    }));
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch my bookings",
     });
   }
 });

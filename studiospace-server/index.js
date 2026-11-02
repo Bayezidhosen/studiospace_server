@@ -227,7 +227,7 @@ app.patch("/api/studios/:id", requireAuth, async (req, res) => {
   }
 });
 
-// Delete Studio - Only the authenticated owner can delete
+
 app.delete("/api/studios/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -260,7 +260,7 @@ app.delete("/api/studios/:id", requireAuth, async (req, res) => {
   }
 });
 
-// Create Booking - Authenticated users only
+
 app.post("/api/bookings", requireAuth, async (req, res) => {
   try {
     const { studioId, date, message } = req.body;

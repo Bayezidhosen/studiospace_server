@@ -52,7 +52,6 @@ app.get("/", (req, res) => {
   res.send("StudioSpace Server is Running!");
 });
 
-// Get Featured Studios - Maximum 6
 app.get("/api/studios/featured", async (req, res) => {
   try {
     const studios = await studiosCollection

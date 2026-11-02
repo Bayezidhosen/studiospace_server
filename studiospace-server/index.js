@@ -149,7 +149,7 @@ app.get("/api/studios/:id", async (req, res) => {
   }
 });
 
-// Add New Studio - Authenticated users only
+
 app.post("/api/studios", requireAuth, async (req, res) => {
   try {
     const studioData = req.body;
@@ -186,7 +186,7 @@ app.post("/api/studios", requireAuth, async (req, res) => {
   }
 });
 
-// Update Studio - Only the authenticated owner can update
+
 app.patch("/api/studios/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;

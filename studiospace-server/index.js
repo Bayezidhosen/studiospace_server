@@ -311,7 +311,7 @@ app.post("/api/bookings", requireAuth, async (req, res) => {
   }
 });
 
-// Get My Bookings - Only the authenticated user's bookings
+
 app.get("/api/bookings/my", requireAuth, async (req, res) => {
   try {
     const bookings = await bookingsCollection
@@ -319,7 +319,7 @@ app.get("/api/bookings/my", requireAuth, async (req, res) => {
       .sort({ createdAt: -1 })
       .toArray();
 
-    // Attach basic studio info so the "My Bookings" page can display it.
+   
     const studioIds = [
       ...new Set(bookings.map((booking) => booking.studioId.toString())),
     ].map((id) => new ObjectId(id));

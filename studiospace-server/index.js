@@ -102,7 +102,6 @@ app.get("/api/studios", async (req, res) => {
   }
 });
 
-// Get My Studios - Only the authenticated user's listings
 app.get("/api/studios/mine", requireAuth, async (req, res) => {
   try {
     const studios = await studiosCollection

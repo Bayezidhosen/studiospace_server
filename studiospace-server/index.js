@@ -119,7 +119,7 @@ app.get("/api/studios/mine", requireAuth, async (req, res) => {
   }
 });
 
-// Get Single Studio
+
 app.get("/api/studios/:id", async (req, res) => {
   try {
     const { id } = req.params;
